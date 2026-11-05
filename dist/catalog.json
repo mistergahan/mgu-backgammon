@@ -1,0 +1,23 @@
+{
+  "schema": 2,
+  "components": [
+    {
+      "id": "dk_backgammon",
+      "kind": "app",
+      "title": "Нарды",
+      "description": "Короткие и длинные нарды: вдвоём или с компьютером",
+      "version": "0.1.0",
+      "build": "unit",
+      "mguHmi": [
+        "ID7"
+      ],
+      "uninstallable": true,
+      "artifact": {
+        "name": "dk_backgammon@0.1.0.tgz",
+        "url": "dk_backgammon@0.1.0.tgz",
+        "size": 10444,
+        "sha256": "162edadbe9051e092108e2d9c86684a11c07edfb5d08e35b012f63c0c0a12162"
+      }
+    }
+  ]
+}
