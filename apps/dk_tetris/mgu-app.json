@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "dk_tetris",
+  "version": "0.1.0",
+  "tree": "dk_tetris@0.1.0",
+  "modules": [
+    "src/app.js",
+    "src/game.js",
+    "src/engine.js",
+    "src/board.js"
+  ],
+  "sdk": [
+    "oap-sdk/src/core/OnlineApp.js",
+    "oap-sdk/src/logging/logging"
+  ],
+  "mguHmi": [
+    "ID7"
+  ]
+}
