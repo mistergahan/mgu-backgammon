@@ -11,6 +11,17 @@
       "mguHmi": [
         "ID7"
       ]
+    },
+    {
+      "id": "dk_tetris",
+      "kind": "app",
+      "path": "apps/dk_tetris",
+      "build": "unit",
+      "title": "Тетрис",
+      "description": "Тетрис для iDrive 7: семь фигур, уровни, рекорд и сохранение.",
+      "mguHmi": [
+        "ID7"
+      ]
     }
   ]
 }

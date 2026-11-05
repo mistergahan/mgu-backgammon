@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "node test/run.js && node test/oap.js",
+    "test": "node test/run.js && node test/oap.js && node test/tetris.js && node test/tetris-oap.js",
     "build": "node tools/build.js"
   },
   "license": "GPL-3.0-or-later"

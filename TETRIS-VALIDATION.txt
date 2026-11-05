@@ -1,0 +1,7 @@
+2026-11-05
+Node v26.0.0
+PASS: 18 engine/render/controller tests, including 50 seeded randomized game runs.
+PASS: OAP mock lifecycle, input during rendering, stable menu rows, gravity, hide/pause, persistence and resource cleanup.
+PASS: native source syntax, JSON, RHMI XML, source package members, catalog SHA-256 and absence of BMW SDK.
+PASS: browser start, movement, rotation, hard drop, pause and save restoration.
+NOT TESTED: Node 8 execution, donor SDK linking, BMW emulator and physical iDrive 7.
