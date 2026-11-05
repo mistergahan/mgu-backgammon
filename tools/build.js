@@ -1,11 +1,17 @@
 'use strict';
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
-const root=path.join(__dirname,'..'), app=path.join(root,'apps','dk_backgammon'), out=path.join(root,'dist');
+const root=path.join(__dirname,'..'),out=path.join(root,'dist');
 if(!fs.existsSync(out))fs.mkdirSync(out);
-const file='dk_backgammon@0.1.0.tgz';
-require('./oap_link.js').packSource(app,path.join(out,file));
-const bytes=fs.readFileSync(path.join(out,file));
-fs.writeFileSync(path.join(out,'catalog.json'),JSON.stringify({schema:2,components:[{id:'dk_backgammon',kind:'app',title:'Нарды',description:'Короткие и длинные нарды: вдвоём или с компьютером',version:'0.1.0',build:'unit',mguHmi:['ID7'],uninstallable:true,artifact:{name:file,url:file,size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')}}]},null,2)+'\n');
-const html=fs.readFileSync(path.join(root,'preview-template.html'),'utf8').replace('<!-- MODULES -->',['engine','game','board'].map(n=>'<script>\n'+fs.readFileSync(path.join(app,'src',n+'.js'),'utf8')+'\n</script>').join('\n'));
-fs.writeFileSync(path.join(root,'preview.html'),html);
-console.log('Source package, USB catalog and standalone preview built. No BMW SDK included.');
+const entries=JSON.parse(fs.readFileSync(path.join(root,'mgu-repo.json'),'utf8')).components;
+const components=entries.map(entry=>{
+ const app=path.join(root,entry.path),manifest=JSON.parse(fs.readFileSync(path.join(app,'mgu-app.json'),'utf8'));
+ const file=manifest.id+'@'+manifest.version+'.tgz';
+ require('./oap_link.js').packSource(app,path.join(out,file));
+ const bytes=fs.readFileSync(path.join(out,file));
+ const prefix=entry.id==='dk_tetris'?'tetris-':'';
+ const html=fs.readFileSync(path.join(root,prefix+'preview-template.html'),'utf8').replace('<!-- MODULES -->',['engine','game','board'].map(n=>'<script>\n'+fs.readFileSync(path.join(app,'src',n+'.js'),'utf8')+'\n</script>').join('\n'));
+ fs.writeFileSync(path.join(root,prefix+'preview.html'),html);
+ return {id:manifest.id,kind:'app',title:entry.title,description:entry.description,version:manifest.version,build:'unit',mguHmi:entry.mguHmi,uninstallable:true,artifact:{name:file,url:file,size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')}};
+});
+fs.writeFileSync(path.join(out,'catalog.json'),JSON.stringify({schema:2,components},null,2)+'\n');
+console.log('Built '+components.length+' source packages, shared catalog and standalone previews. No BMW SDK included.');
