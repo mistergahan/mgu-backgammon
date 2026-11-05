@@ -63,9 +63,3 @@ npm run build
 - `test/oap.js` — проверка последовательности вызовов адаптера через заглушку SDK; не заменяет интеграционный тест.
 
 На устройстве приложение хранит `backgammon.json` в своей папке `data`. Временные PNG создаются в отдельной папке `/dev/shm` и заменяются с освобождением старого ресурса RHMI. Сетевых запросов в приложении нет.
-
-## Источники и лицензия
-
-Изучен [robertnisipeanu/mgu-store](https://github.com/robertnisipeanu/mgu-store), commit `648c7874b40c51375e6647f936f85ae501498bd1`. Контракт упаковки: [Publishing apps for the Store](https://github.com/robertnisipeanu/mgu-store/blob/648c7874b40c51375e6647f936f85ae501498bd1/docs/PUBLISHING.md). За основу структуры OAP взяты метаданные `apps/robertn_store`; инструменты `tools/oap_link.js` и `tools/oap_pack.js` сохранены из этого репозитория. Лицензия проекта — GPL-3.0-or-later, текст находится в `LICENSE`.
-
-При проверке правил использованы [US Backgammon Federation](https://usbgf.org/backgammon-basics-how-to-play/) и [правила нард, раздел о длинных нардах](https://nards.club/documents/nards/rule_nards.pdf). Ограничения выбранного игрового режима перечислены выше; приложение не реализует весь регламент спортивных соревнований.
