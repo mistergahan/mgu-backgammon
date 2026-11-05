@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('fs'),path=require('path'),crypto=require('crypto');
+const root=path.join(__dirname,'..'), app=path.join(root,'apps','dk_backgammon'), out=path.join(root,'dist');
+if(!fs.existsSync(out))fs.mkdirSync(out);
+const file='dk_backgammon@0.1.0.tgz';
+require('./oap_link.js').packSource(app,path.join(out,file));
+const bytes=fs.readFileSync(path.join(out,file));
+fs.writeFileSync(path.join(out,'catalog.json'),JSON.stringify({schema:2,components:[{id:'dk_backgammon',kind:'app',title:'Нарды',description:'Короткие и длинные нарды: вдвоём или с компьютером',version:'0.1.0',build:'unit',mguHmi:['ID7'],uninstallable:true,artifact:{name:file,url:file,size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')}}]},null,2)+'\n');
+const html=fs.readFileSync(path.join(root,'preview-template.html'),'utf8').replace('<!-- MODULES -->',['engine','game','board'].map(n=>'<script>\n'+fs.readFileSync(path.join(app,'src',n+'.js'),'utf8')+'\n</script>').join('\n'));
+fs.writeFileSync(path.join(root,'preview.html'),html);
+console.log('Source package, USB catalog and standalone preview built. No BMW SDK included.');
