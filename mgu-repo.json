@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "components": [
+    {
+      "id": "dk_backgammon",
+      "kind": "app",
+      "path": "apps/dk_backgammon",
+      "build": "unit",
+      "title": "Нарды",
+      "description": "Короткие и длинные нарды: вдвоём или с компьютером.",
+      "mguHmi": [
+        "ID7"
+      ]
+    }
+  ]
+}

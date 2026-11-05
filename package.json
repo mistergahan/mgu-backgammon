@@ -1,0 +1,10 @@
+{
+  "name": "mgu-backgammon",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "node test/run.js && node test/oap.js",
+    "build": "node tools/build.js"
+  },
+  "license": "GPL-3.0-or-later"
+}

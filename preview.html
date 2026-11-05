@@ -1,0 +1,221 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Нарды · MGU</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101a1e;color:#eee5d5;font:16px system-ui,sans-serif}main{max-width:1350px;margin:auto;padding:38px 32px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #344447;padding-bottom:22px;margin-bottom:28px}h1{font-size:40px;margin:5px 0;font-weight:550;letter-spacing:-1.5px}.eyebrow{color:#c6a77b;font-size:12px;letter-spacing:3px;text-transform:uppercase}.pill{border:1px solid #516366;border-radius:30px;padding:10px 18px;color:#c8d3d0;font-size:13px}.layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:28px}canvas{width:100%;border-radius:10px;box-shadow:0 18px 40px #0005}h2{font-size:18px;margin:0 0 18px}.stats{display:flex;justify-content:space-between;margin:22px 0;color:#b5c8c7}.status{min-height:56px;font-size:18px;line-height:1.5}button{font:inherit;color:#eae7da;background:#1b2e33;border:1px solid #3c5357;border-radius:9px;padding:13px 16px;text-align:left;width:100%;cursor:pointer}button:hover{background:#2c4549}button:focus-visible{outline:3px solid #e3bd79;outline-offset:2px}#actions{display:grid;gap:8px;max-height:510px;overflow:auto;padding:4px}#actions button:first-child{background:#c6a77b;color:#14252a;border-color:#c6a77b}footer{border-top:1px solid #344447;margin-top:28px;padding-top:20px;color:#9baead;font-size:13px;line-height:1.7}details{margin-top:18px;color:#b5c8c7}summary{cursor:pointer}#error{color:#ffb6a9;min-height:20px}@media(max-width:700px){main{padding:20px 14px}.layout{grid-template-columns:1fr}#actions{max-height:350px}h1{font-size:32px}header{gap:15px}.pill{font-size:11px}}
+</style><main><header><div><div class="eyebrow">BMW iDrive · настольные игры</div><h1 id="title">Короткие нарды</h1></div><span class="pill">Локальная демонстрация</span></header><div class="layout"><section><div class="status" id="status" aria-live="polite"></div><canvas id="board" width="960" height="480" role="img" aria-label="Доска для игры в нарды"></canvas><div class="stats"><span id="white"></span><span id="black"></span></div><div id="error" role="alert"></div><details><summary>Правила и управление</summary><p>В коротких нардах белые идут от 24 к 1, чёрные — от 1 к 24. Выберите ход справа: указаны исходный пункт, конечный пункт и кость. Кости первого броска определяют, кто начинает; равенство требует нового броска. Дубль даёт четыре движения.</p><p>Сначала верните шашки с бара. Можно занимать свободный пункт, свой пункт или бить одиночную шашку соперника. Снять шашки можно, когда все они в доме. Список оставляет только ходы, позволяющие использовать максимум костей; если можно сыграть только одну, обязательна старшая.</p><p>В длинных нардах белые начинают на 24, чёрные — на 12. Оба идут в сторону уменьшения номера, после 1 — на 24. Дом белых: 6–1; чёрных: 18–13. Чужие пункты закрыты даже одной шашкой, сбивания нет. За очередь с головы снимается одна шашка; на первом ходу второго игрока при 3–3, 4–4, 6–6 — две. Блок из шести пунктов допустим, только если хотя бы одна шашка соперника уже прошла его. Победа: 1 очко, марс: 2, без ответного хода.</p><p>В режиме с компьютером вы играете белыми. Нажмите «Ход компьютера» для каждого его движения. Отмена доступна до передачи очереди. Новая партия требует отдельного выбора режима. Куб удвоения и матчи не включены.</p></details></section><aside><div class="eyebrow" id="mode" style="margin-bottom:14px"></div><h2>Ваш следующий ход</h2><div id="actions"></div></aside></div><footer>Демонстрация использует тот же игровой движок, что и пакет OAP. Она не имитирует интерфейс головного устройства. Партия сохраняется в этом браузере.</footer></main>
+<script>
+'use strict';
+// Indices are zero based. Short: opposite directions; long: both decrease, wrapping at 0.
+// Bar is -1, off is 24. Long-game heads: white 23, black 11.
+function copy(s) { return JSON.parse(JSON.stringify(s)); }
+function initial(variant) {
+    const points = Array(24).fill(0);
+    [[23,2],[12,5],[7,3],[5,5],[0,-2],[11,-5],[16,-3],[18,-5]].forEach(p => { points[p[0]] = p[1]; });
+    if (variant === 'long') { points.fill(0); points[23]=15; points[11]=-15; }
+    return { variant: variant === 'long' ? 'long' : 'short', turns:[0,0], headUsed:0, points, bar: [0,0], off: [0,0], player: 0, dice: [], roll: [], opening: true, winner: null };
+}
+function distance(s,p,i) { return s.variant === 'long' ? 24-(((p===0?23:11)-i+24)%24) : (p===0?i+1:24-i); }
+function head(p) { return p===0?23:11; }
+function blockedSix(s,p) {
+    const sg=sign(p),other=1-p;let run=0;
+    for(let step=0;step<24;step++){
+        const i=(head(other)-step+24)%24;run=s.points[i]*sg>0?run+1:0;
+        if(run>=6 && !s.off[other] && !s.points.some((n,j)=>n*sg<0 && 24-distance(s,other,j)>step)) return true;
+    }
+    return false;
+}
+function sign(p) { return p === 0 ? 1 : -1; }
+function home(s) { return !s.bar[s.player] && s.points.every((n,i) => n * sign(s.player) <= 0 || distance(s,s.player,i) <= 6); }
+function singles(s, die) {
+    const p = s.player, sg = sign(p), out = [];
+    if (s.winner !== null) return out;
+    const froms = s.bar[p] ? [-1] : s.points.map((n,i) => n*sg > 0 ? i : -1).filter(i => i >= 0);
+    froms.forEach(from => {
+        const long=s.variant==='long';
+        if(long && from===head(p)){
+            const limit=s.turns[p]===0 && s.roll[0]===s.roll[1] && [3,4,6].includes(s.roll[0])?2:1;
+            if(s.headUsed>=limit)return;
+        }
+        let to = from === -1 ? (p === 0 ? 24-die : die-1) : from - sg*die;
+        if(long)to=distance(s,p,from)<=die?24:(from-die+24)%24;
+        if (to < 0 || to > 23) {
+            if (from === -1 || !home(s)) return;
+            const d = distance(s,p,from);
+            if (die !== d && s.points.some((n,i) => n*sg > 0 && distance(s,p,i) > d)) return;
+            to = 24;
+        } else if (s.points[to]*sg < (long?0:-1)) return;
+        if(long){const next=copy(s);next.points[from]-=sg;if(to!==24)next.points[to]+=sg;else next.off[p]++;if(blockedSix(next,p))return;}
+        out.push({from, to, die});
+    });
+    return out;
+}
+function apply(s,m) {
+    const t = copy(s), p = t.player, sg = sign(p);
+    if(t.variant==='long' && m.from===head(p))t.headUsed++;
+    if (m.from === -1) t.bar[p]--; else t.points[m.from] -= sg;
+    if (m.to === 24) t.off[p]++;
+    else { if (t.points[m.to] === -sg) { t.bar[1-p]++; t.points[m.to] = 0; } t.points[m.to] += sg; }
+    t.dice.splice(t.dice.indexOf(m.die),1);
+    if (t.off[p] === 15) { t.winner = p; t.pointsWon = t.off[1-p] ? 1 : t.variant==='long' ? 2 : (t.bar[1-p] || t.points.some((n,i) => n*sg < 0 && distance(t,p,i) <= 6) ? 3 : 2); }
+    return t;
+}
+function depth(s, memo) {
+    if (!s.dice.length || s.winner !== null) return 0;
+    const key = JSON.stringify([s.points,s.bar,s.off,s.player,s.dice,s.headUsed]);
+    if (memo[key] !== undefined) return memo[key];
+    let best = 0;
+    Array.from(new Set(s.dice)).forEach(d => singles(s,d).forEach(m => { best = Math.max(best,1+depth(apply(s,m),memo)); }));
+    memo[key] = best; return best;
+}
+function legal(s) {
+    const memo = {}, best = depth(s,memo);
+    if (!best) return [];
+    let moves = [];
+    Array.from(new Set(s.dice)).forEach(d => singles(s,d).forEach(m => { if (1+depth(apply(s,m),memo) === best) moves.push(m); }));
+    if (best === 1) { const high = Math.max.apply(null,moves.map(m => m.die)); moves = moves.filter(m => m.die === high); }
+    return moves;
+}
+function move(s,m) {
+    if (!legal(s).some(v => v.from === m.from && v.to === m.to && v.die === m.die)) throw new Error('Недопустимый ход');
+    return apply(s,m);
+}
+function roll(s, die) {
+    if (s.winner !== null || s.dice.length || s.roll.length) throw new Error('Сначала завершите ход');
+    const t = copy(s); let a = die(), b = die();
+    if (![a,b].every(v => Number.isInteger(v) && v >= 1 && v <= 6)) throw new Error('Некорректные кости');
+    if (t.opening && a === b) return t;
+    if (t.opening) { t.player = a > b ? 0 : 1; t.opening = false; }
+    t.roll = [a,b]; t.dice = a === b ? [a,a,a,a] : [a,b]; return t;
+}
+function finish(s) {
+    if (s.opening || !s.roll.length || legal(s).length || s.winner !== null) throw new Error('Ход ещё не закончен');
+    const t = copy(s); t.turns[t.player]++; t.headUsed=0; t.player = 1-t.player; t.dice = []; t.roll = []; return t;
+}
+function pips(s,p) { return s.bar[p]*25 + s.points.reduce((v,n,i) => v + Math.max(0,n*sign(p))*distance(s,p,i),0); }
+function ai(s) {
+    let best = null, score = -Infinity;
+    legal(s).forEach(m => {
+        const t = apply(s,m), p = s.player, sg = sign(p);
+        const value = (t.winner === p ? 10000 : 0) + t.off[p]*18 - pips(t,p)*0.22 + t.bar[1-p]*12 +
+            t.points.reduce((v,n,i) => v + (s.variant==='long' ? (n*sg>0?3:0) : n*sg >= 2 ? (distance(t,p,i)<=6 ? 5 : 2) : n*sg === 1 ? -4 : 0),0);
+        if (value > score) { score = value; best = m; }
+    });
+    return best;
+}
+function valid(s) {
+    if (!s || !Array.isArray(s.points) || s.points.length !== 24 || ![0,1].includes(s.player) || ![null,0,1].includes(s.winner) || typeof s.opening !== 'boolean') return false;
+    if (!s.points.every(n => Number.isInteger(n) && Math.abs(n)<=15)) return false;
+    if (![s.bar,s.off].every(a => Array.isArray(a) && a.length===2 && a.every(n=>Number.isInteger(n)&&n>=0&&n<=15))) return false;
+    if (![s.dice,s.roll].every(a => Array.isArray(a) && a.every(n=>Number.isInteger(n)&&n>=1&&n<=6)) || s.dice.length>4 || ![0,2].includes(s.roll.length)) return false;
+    if (![0,1].every(p => s.bar[p]+s.off[p]+s.points.reduce((v,n)=>v+Math.max(0,n*sign(p)),0)===15)) return false;
+    if (s.winner !== null && s.off[s.winner] !== 15) return false;
+    if (s.winner === null && s.off.some(n=>n===15)) return false;
+    if(!['short','long'].includes(s.variant) || !Array.isArray(s.turns) || s.turns.length!==2 || !s.turns.every(n=>Number.isInteger(n)&&n>=0) || !Number.isInteger(s.headUsed) || s.headUsed<0 || s.headUsed>2)return false;
+    if(s.variant==='long' && s.bar.some(n=>n!==0))return false;
+    if (s.opening) return JSON.stringify(s) === JSON.stringify(initial(s.variant));
+    const available = !s.roll.length ? [] : s.roll[0]===s.roll[1] ? Array(4).fill(s.roll[0]) : s.roll.slice();
+    return s.dice.every(d=>{ const i=available.indexOf(d); if(i<0)return false; available.splice(i,1); return true; });
+}
+const api = {initial,copy,legal,move,roll,finish,pips,ai,valid};
+if (typeof module !== 'undefined') module.exports = api;
+else window.Backgammon = api;
+
+</script>
+<script>
+'use strict';
+const E = typeof module !== 'undefined' ? require('./engine.js') : window.Backgammon;
+function Game(saved) {
+    this.state = saved && E.valid(saved.state) ? saved.state : E.initial();
+    this.mode = saved && saved.mode === 'local' ? 'local' : 'computer';
+    this.history = []; this.confirm = false; this.note = "";
+}
+Game.prototype.snapshot = function() { return {schema:1,state:this.state,mode:this.mode}; };
+Game.prototype.status = function() {
+    const s=this.state, who = s.player===0 ? 'Белые' : 'Чёрные';
+    if(s.winner!==null) return (s.winner===0?'Белые':'Чёрные')+' победили · '+s.pointsWon+' очк.';
+    if(s.opening && this.note) return this.note;
+    if(s.opening) return 'Первый бросок: каждому по одной кости. При равенстве — переброс.';
+    return (s.variant==='long'?'Длинные · ':'Короткие · ')+who+' · '+(s.roll.length ? 'кости '+s.roll.join(' : ')+' · осталось '+(s.dice.join(', ')||'—') : 'бросьте кости');
+};
+Game.prototype.actions = function() {
+    const s=this.state;
+    if(this.confirm) return [{label:'Отмена',op:'cancel'}].concat(['short','long'].reduce((all,variant)=>all.concat(['computer','local'].map(mode=>({label:(variant==='long'?'Длинные':'Короткие')+' · '+(mode==='computer'?'с компьютером':'вдвоём'),op:'new',mode,variant}))),[]));
+    const a=[];
+    if(s.winner===null) {
+        if(s.opening || !s.roll.length) a.push({label:s.opening?'Первый бросок':'Бросить кости',op:'roll'});
+        else {
+            const moves=E.legal(s);
+            if(this.mode==='computer' && s.player===1 && moves.length) a.push({label:'Ход компьютера',op:'ai'});
+            else moves.forEach(m=>a.push({label:(m.from===-1?'Бар':m.from+1)+' → '+(m.to===24?'Снять':m.to+1)+'   [ '+m.die+' ]',op:'move',move:m}));
+            if(!moves.length) a.push({label:s.dice.length?'Нет ходов · передать очередь':'Завершить ход',op:'finish'});
+        }
+        if(this.history.length) a.push({label:'Отменить движение',op:'undo'});
+    }
+    a.push({label:'Новая партия…',op:'confirm'}); return a;
+};
+Game.prototype.act = function(a,die) {
+    if(!this.actions().some(x=>JSON.stringify(x)===JSON.stringify(a))) throw new Error('Действие устарело');
+    if(a.op==='confirm') this.confirm=true;
+    else if(a.op==='cancel') this.confirm=false;
+    else if(a.op==='new') {this.state=E.initial(a.variant);this.mode=a.mode;this.history=[];this.confirm=false;this.note='';}
+    else if(a.op==='roll') {const rolled=[];this.state=E.roll(this.state,()=>{const d=die();rolled.push(d);return d;});this.note=this.state.opening?'Выпало '+rolled.join(' : ')+' · равенство, бросьте ещё раз':'';this.history=[];}
+    else if(a.op==='finish') {this.state=E.finish(this.state);this.history=[];}
+    else if(a.op==='undo') this.state=this.history.pop();
+    else {const m=a.op==='ai'?E.ai(this.state):a.move;this.history.push(E.copy(this.state));this.state=E.move(this.state,m);}
+};
+if(typeof module !== 'undefined') module.exports=Game; else window.Game=Game;
+
+</script>
+<script>
+'use strict';
+// The same drawing commands feed the native PNG and the desktop canvas.
+function draw(ctx,s) {
+    const W=960,H=480;
+    function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
+    function disc(x,y,r,c){ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+    const digits=['111101101101111','010110010010111','111001111100111','111001111001111','101101111001001','111100111001111','111100111101111','111001001001001','111101111101111','111101111001111'];
+    function number(n,x,y,c,scale){String(n).split('').forEach((d,k)=>{digits[+d].split('').forEach((v,i)=>{if(v==='1')rect(x+k*4*scale+(i%3)*scale,y+Math.floor(i/3)*scale,scale,scale,c);});});}
+    rect(0,0,W,H,'#0e191d');rect(10,10,940,460,'#86613d');rect(24,24,912,432,'#243c3e');rect(462,24,36,432,'#15282c');
+    for(let col=0;col<12;col++) {
+        const x=36+col*72+(col>=6?24:0);
+        for(let row=0;row<2;row++) {
+            const i=row===0?12+col:11-col, y=row===0?52:428, tip=row===0?210:270;
+            ctx.fillStyle=col%2===row?'#ba986b':'#527375';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+60,y);ctx.lineTo(x+30,tip);ctx.closePath();ctx.fill();
+            number(i+1,x+21,row===0?30:439,'#e7d6b9',2);
+            const count=Math.abs(s.points[i]), white=s.points[i]>0;
+            for(let k=0;k<Math.min(count,5);k++) {const cy=row===0?74+k*31:406-k*31;disc(x+30,cy,23,'#102328');disc(x+30,cy-2,21,white?'#f4e5c8':'#0b1117');disc(x+30,cy-2,15,white?'#dbc7a1':'#283a43');}
+            if(count>5)number(count,x+21,row===0?194:278,white?'#142b31':'#ffffff',3);
+        }
+    }
+    [0,1].forEach(p=>{ if(s.bar[p]) {disc(480,p===0?170:310,16,p===0?'#f4e5c8':'#0b1117');number(s.bar[p],475,p===0?163:303,p===0?'#15282c':'#ffffff',2);} });
+    s.roll.forEach((d,i)=>{const x=392+i*90;rect(x,217,54,46,'#f4e5c8');number(d,x+19,225,'#142b31',6);});
+}
+function png(s) {
+    const zlib=require('zlib'), w=960,h=480, data=Buffer.alloc(w*h*3);let color=[0,0,0], points=[], circle=null;
+    function pixel(x,y){x=Math.round(x);y=Math.round(y);if(x<0||x>=w||y<0||y>=h)return;const i=(y*w+x)*3;data[i]=color[0];data[i+1]=color[1];data[i+2]=color[2];}
+    const ctx={set fillStyle(c){color=[1,3,5].map(i=>parseInt(c.substr(i,2),16));},fillRect(x,y,a,b){for(let j=y;j<y+b;j++)for(let i=x;i<x+a;i++)pixel(i,j);},beginPath(){points=[];circle=null;},moveTo(x,y){points.push([x,y]);},lineTo(x,y){points.push([x,y]);},closePath(){},arc(x,y,r){circle=[x,y,r];},fill(){
+        if(circle){const x=circle[0],y=circle[1],r=circle[2];for(let j=-r;j<=r;j++)for(let i=-r;i<=r;i++)if(i*i+j*j<=r*r)pixel(x+i,y+j);return;}
+        const min=Math.min.apply(null,points.map(p=>p[1])),max=Math.max.apply(null,points.map(p=>p[1]));
+        for(let y=min;y<max;y++){const xs=[];points.forEach((a,i)=>{const b=points[(i+1)%points.length];if((a[1]<=y&&b[1]>y)||(b[1]<=y&&a[1]>y))xs.push(a[0]+(y-a[1])*(b[0]-a[0])/(b[1]-a[1]));});xs.sort((a,b)=>a-b);for(let k=0;k+1<xs.length;k+=2)for(let x=Math.ceil(xs[k]);x<=xs[k+1];x++)pixel(x,y);}
+    }};
+    draw(ctx,s);
+    function crc(b){let c=0xffffffff;for(let i=0;i<b.length;i++){c^=b[i];for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0);}return(c^0xffffffff)>>>0;}
+    function chunk(type,b){const t=Buffer.from(type),n=Buffer.alloc(4),c=Buffer.alloc(4);n.writeUInt32BE(b.length,0);c.writeUInt32BE(crc(Buffer.concat([t,b])),0);return Buffer.concat([n,t,b,c]);}
+    const hdr=Buffer.alloc(13);hdr.writeUInt32BE(w,0);hdr.writeUInt32BE(h,4);hdr[8]=8;hdr[9]=2;
+    const rows=Buffer.alloc(h*(w*3+1));for(let y=0;y<h;y++)data.copy(rows,y*(w*3+1)+1,y*w*3,(y+1)*w*3);
+    return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',hdr),chunk('IDAT',zlib.deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]);
+}
+if(typeof module!=='undefined')module.exports={draw,png};else window.Board={draw};
+
+</script>
+<script>
+(function(){
+'use strict';let saved=null;try{saved=JSON.parse(localStorage.getItem('mgu-backgammon-v1'));}catch(e){}
+const game=new window.Game(saved),ctx=document.getElementById('board').getContext('2d');
+function die(){const v=new Uint8Array(1);do{crypto.getRandomValues(v);}while(v[0]>=252);return v[0]%6+1;}
+function render(){const s=game.state;document.getElementById('title').textContent=s.variant==='long'?'Длинные нарды':'Короткие нарды';window.Board.draw(ctx,s);document.getElementById('status').textContent=game.status();document.getElementById('mode').textContent=game.mode==='local'?'Два игрока':'Вы и компьютер';
+document.getElementById('white').textContent='○ Белые · снято '+s.off[0]+'/15 · пипсы '+Backgammon.pips(s,0);document.getElementById('black').textContent='● Чёрные · снято '+s.off[1]+'/15 · пипсы '+Backgammon.pips(s,1);
+document.getElementById('board').setAttribute('aria-label','Доска: '+s.points.map((n,i)=>n?(i+1)+': '+Math.abs(n)+(n>0?' белых':' чёрных'):'').filter(Boolean).join('; ')+'. Бар: '+s.bar.join(', '));
+const list=document.getElementById('actions');list.innerHTML='';game.actions().forEach(a=>{const b=document.createElement('button');b.textContent=a.label;b.onclick=()=>{try{game.act(a,die);try{localStorage.setItem('mgu-backgammon-v1',JSON.stringify(game.snapshot()));document.getElementById('error').textContent='';}catch(e){document.getElementById('error').textContent='Браузер не разрешил сохранение партии.';}render();list.querySelector('button').focus();}catch(e){document.getElementById('error').textContent=e.message;}};list.appendChild(b);});}
+render();
+})();
+</script></html>

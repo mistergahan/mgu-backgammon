@@ -1,0 +1,9 @@
+Date: 2026-11-05
+Node: v26.0.0
+24 engine/controller/render tests passed, including 12 short and 12 long complete seeded games.
+OAP mock contract test passed: initialization, action, persistence, resource lifecycle.
+Native module syntax, JSON and RHMI XML parsed.
+Source archive modules, absence of bundled SDK and catalog SHA-256 verified.
+Browser UI: short-game roll and AI movement; long-game mode selection, tie, head limit, move and reload persistence verified.
+NOT VERIFIED: execution on Node 8, BMW SDK linking, head-unit emulator, physical iDrive 7.
+iDrive 8 not declared as supported.
