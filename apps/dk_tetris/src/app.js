@@ -10,9 +10,13 @@ class TetrisApp extends OnlineApp{
  constructor(){
   super();let saved=null;try{saved=JSON.parse(fs.readFileSync(SAVE,'utf8'));}catch(e){if(e.code!=='ENOENT')log.warn(e.message);}
   this.game=new Game(saved,random);this.foreground=false;this.ready=false;this.stopping=false;this.dirty=false;this.chain=Promise.resolve();this.rendering=false;this.rows=[];this.image=null;this.seq=0;this.menuKey='';this.saveTimer=null;this.timer=null;this.saveError='';
-  this.dir=fs.mkdtempSync(path.join(fs.existsSync('/dev/shm')?'/dev/shm':os.tmpdir(),'tetris-'));fs.chmodSync(this.dir,0o755);
-  this.on('initialized',()=>this.setup().catch(e=>log.error(e.stack||e.message)));
-  this.on('entryPointExecute',uuid=>{this.foreground=true;if(this.rhmiApplication)this.rhmiApplication.openEntryState(uuid).catch(e=>log.warn(e.message));});
+  this.dir=null;
+  this.on('initialized',()=>Promise.resolve().then(()=>this.setup()).catch(e=>log.error(e.stack||e.message)));
+  this.launchReady=false;
+        this.on('entryPointExecute',uuid=>{
+            if(!this.launchReady){this.pendingEntry=uuid;return;}
+            this.openGame(uuid).catch(e=>log.warn(e.message));
+        });
   this.on('changeVisibility',data=>{if(data&&data.visible===false)this.hide();});
   this.on('shutdown',()=>this.shutdown().then(()=>process.exit(0)));
   this.on('error',e=>log.error(e.message));
@@ -20,19 +24,47 @@ class TetrisApp extends OnlineApp{
  save(){clearTimeout(this.saveTimer);this.saveTimer=null;try{if(!fs.existsSync(DATA))fs.mkdirSync(DATA);fs.writeFileSync(SAVE+'.tmp',JSON.stringify(this.game.state),{mode:0o600});fs.renameSync(SAVE+'.tmp',SAVE);this.saveError='';}catch(e){this.saveError='Не удалось сохранить';log.warn(e.message);}}
  saveSoon(){if(!this.saveTimer)this.saveTimer=setTimeout(()=>this.save(),500);}
  hide(){this.foreground=false;this.game.pause();this.save();this.requestRender();}
- setup(){
+ openGame(uuid){
+        if(!uuid||!this.rhmiApplication)return Promise.resolve();
+        this.foreground=true;
+        return Promise.resolve().then(()=>this.rhmiApplication.openEntryState(uuid));
+    }
+    async startScreen(ep,host){
+        const d=ep.getDescription();
+        await host.updateResources();
+        await ep.init();
+        await this.rhmiApplication.mapEntryState(d.uuid,host);
+        try{
+            await ep.entryPoint.setText(d.textId);
+            if(d.icon)await ep.entryPoint.setIcon(d.icon);
+        }catch(e){log.warn('Entry point appearance: '+e.message);}
+        await ep.setAvailability('ENABLED');
+        const data=this.getVisibilityData && this.getVisibilityData();
+        const reason=(data && data.reason)||this.startReason;
+        const lastEntry=()=>this.getLastExecutedEntryPointUuid && this.getLastExecutedEntryPointUuid();
+        const foregroundStart=['ENTRY_POINT','LUM','BOOKMARK','START_WIDGET','TRIGGER_HMI','SPEECH_COMMAND'].indexOf(reason)>=0;
+        if(this.pendingEntry || lastEntry() || foregroundStart){
+            this.registerActive();
+        }
+        await this.initialized();
+        this.launchReady=true;
+        const firstEntry=this.pendingEntry || lastEntry() || (foregroundStart ? d.uuid : null);
+        this.pendingEntry=null;
+        await this.openGame(firstEntry);
+    }
+    setup(){
   const r=this.rhmiApplication;if(!r)return this.initialized();
   this.board=r.getByName('board');this.status=r.getByName('status');this.list=r.getByName('moves');this.host=r.getByName('ST_Tetris');
   this.list.on('action',ev=>this.press(Number(ev&&ev.row)||0));
-  this.host.on('visible',ev=>{if(truth(ev&&ev.value))this.foreground=true;else this.hide();});
-  this.host.on('focus',ev=>{if(!truth(ev&&ev.value))this.hide();});
+  this.host.on('visible',ev=>{if(truth(ev&&ev.visible))this.foreground=true;else this.hide();});
+  this.host.on('focus',ev=>{if(!truth(ev&&ev.focus))this.hide();});
   r.on('restoreHmi',()=>{this.game.pause();this.menuKey='';this.requestRender();});
   const descriptions=this.appDescription.application.entryPoints;
-  const ep=this.getEntryPoints().find(e=>descriptions.some(d=>d.uuid===e.getDescription().uuid));if(!ep)throw new Error('Entry point unavailable');const d=ep.getDescription();
-  return ep.init().then(()=>r.mapEntryState(d.uuid,this.host)).then(()=>ep.entryPoint.setText(d.textId)).then(()=>ep.entryPoint.setIcon(d.icon)).then(()=>ep.setAvailability('ENABLED'))
-   .then(()=>{this.ready=true;return this.requestRender();}).then(()=>this.initialized()).then(()=>{
-    this.lastTime=Date.now();this.timer=setInterval(()=>this.tick(),100);
-    const id=this.getLastExecutedEntryPointUuid&&this.getLastExecutedEntryPointUuid();if(id){this.foreground=true;this.registerActive();return r.openEntryState(id);}
+  const ep=this.getEntryPoints().find(e=>descriptions.some(d=>d.uuid===e.getDescription().uuid));if(!ep)throw new Error('Entry point unavailable');return this.startScreen(ep,this.host).then(()=>{
+    this.ready=true;
+    this.lastTime=Date.now();
+    this.timer=setInterval(()=>this.tick(),100);
+    return this.requestRender();
    });
  }
  press(row){if(!this.ready||this.stopping||!this.rows[row])return;this.game.act(this.rows[row].op);this.lastTime=Date.now();this.saveSoon();this.requestRender();}
@@ -43,7 +75,19 @@ class TetrisApp extends OnlineApp{
  }
  drain(){if(!this.dirty||this.stopping)return Promise.resolve();this.dirty=false;return this.render().then(()=>this.drain());}
  render(){
-  const r=this.rhmiApplication,rows=this.game.actions(),menu=JSON.stringify(rows),file=path.join(this.dir,'board-'+(++this.seq)+'.png'),old=this.image,bundle=r.getResourceBundle();
+  if(!this.dir){
+            let failure;
+            for(const parent of ['/dev/shm',os.tmpdir()]){
+                try{
+                    const dir=fs.mkdtempSync(path.join(parent,'dk_tetris-'));
+                    fs.chmodSync(dir,0o755);
+                    this.dir=dir;
+                    break;
+                }catch(e){failure=e;}
+            }
+            if(!this.dir)throw failure;
+        }
+        const r=this.rhmiApplication,rows=this.game.actions(),menu=JSON.stringify(rows),file=path.join(this.dir,'board-'+(++this.seq)+'.png'),old=this.image,bundle=r.getResourceBundle();
   const status=this.game.status()+(this.saveError?' · '+this.saveError:'');fs.writeFileSync(file,Board.png(this.game.state),{mode:0o644});
   return Promise.resolve(bundle.createResourceHandles([file])).then(()=>this.board.setValue(0,'Graphic',file,'ResourceId')).then(()=>this.status.setValue(0,'Text',status,'Text'))
    .then(()=>{if(menu===this.menuKey)return;return Promise.resolve(this.list.setRowCount(rows.length)).then(()=>Promise.all(rows.map((a,i)=>this.list.setValue(i,'Text',a.label,'Text'))));})
