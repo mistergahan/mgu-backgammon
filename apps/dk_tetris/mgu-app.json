@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "dk_tetris",
-  "version": "0.1.0",
-  "tree": "dk_tetris@0.1.0",
+  "version": "0.1.1",
+  "tree": "dk_tetris@0.1.1",
   "modules": [
     "src/app.js",
     "src/game.js",
