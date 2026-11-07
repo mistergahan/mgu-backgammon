@@ -11,13 +11,45 @@ class BackgammonApp extends OnlineApp {
         super();let saved=null;
         try{saved=JSON.parse(fs.readFileSync(SAVE,'utf8'));}catch(e){if(e.code!=='ENOENT')logger.warn('Cannot read saved game: '+e.message);}
         this.game=new Game(saved);this.busy=true;this.image=null;this.seq=0;this.rows=[];this.saveError='';
-        this.dir=fs.mkdtempSync(path.join(fs.existsSync('/dev/shm')?'/dev/shm':os.tmpdir(),'backgammon-'));fs.chmodSync(this.dir,0o755);
-        this.on('initialized',()=>this.setup().catch(e=>logger.error(e.stack||e.message)).then(()=>{this.busy=false;}));
-        this.on('entryPointExecute',uuid=>{if(this.rhmiApplication)this.rhmiApplication.openEntryState(uuid).catch(e=>logger.warn(e.message));});
+        this.dir=null;
+        this.on('initialized',()=>Promise.resolve().then(()=>this.setup()).catch(e=>logger.error(e.stack||e.message)).then(()=>{this.busy=false;}));
+        this.launchReady=false;
+        this.on('entryPointExecute',uuid=>{
+            if(!this.launchReady){this.pendingEntry=uuid;return;}
+            this.openGame(uuid).catch(e=>logger.warn(e.message));
+        });
         this.on('error',e=>logger.error(e.message));
         this.on('shutdown',()=>{this.stopping=true;this.save();this.cleanup().then(()=>process.exit(0));});
     }
     save(){try{if(!fs.existsSync(DATA))fs.mkdirSync(DATA);fs.writeFileSync(SAVE+'.tmp',JSON.stringify(this.game.snapshot()),{mode:0o600});fs.renameSync(SAVE+'.tmp',SAVE);this.saveError='';}catch(e){this.saveError='Не удалось сохранить партию';logger.warn(e.message);}}
+    openGame(uuid){
+        if(!uuid||!this.rhmiApplication)return Promise.resolve();
+        
+        return Promise.resolve().then(()=>this.rhmiApplication.openEntryState(uuid));
+    }
+    async startScreen(ep,host){
+        const d=ep.getDescription();
+        await host.updateResources();
+        await ep.init();
+        await this.rhmiApplication.mapEntryState(d.uuid,host);
+        try{
+            await ep.entryPoint.setText(d.textId);
+            if(d.icon)await ep.entryPoint.setIcon(d.icon);
+        }catch(e){logger.warn('Entry point appearance: '+e.message);}
+        await ep.setAvailability('ENABLED');
+        const data=this.getVisibilityData && this.getVisibilityData();
+        const reason=(data && data.reason)||this.startReason;
+        const lastEntry=()=>this.getLastExecutedEntryPointUuid && this.getLastExecutedEntryPointUuid();
+        const foregroundStart=['ENTRY_POINT','LUM','BOOKMARK','START_WIDGET','TRIGGER_HMI','SPEECH_COMMAND'].indexOf(reason)>=0;
+        if(this.pendingEntry || lastEntry() || foregroundStart){
+            this.registerActive();
+        }
+        await this.initialized();
+        this.launchReady=true;
+        const firstEntry=this.pendingEntry || lastEntry() || (foregroundStart ? d.uuid : null);
+        this.pendingEntry=null;
+        await this.openGame(firstEntry);
+    }
     setup(){
         const r=this.rhmiApplication;if(!r)return this.initialized();
         this.board=r.getByName('board');this.status=r.getByName('status');this.list=r.getByName('moves');
@@ -26,11 +58,7 @@ class BackgammonApp extends OnlineApp {
         const descriptions=this.appDescription.application.entryPoints;
         const ep=this.getEntryPoints().find(e=>descriptions.some(d=>d.uuid===e.getDescription().uuid));
         if(!ep)throw new Error('Entry point unavailable');
-        const d=ep.getDescription();
-        return ep.init().then(()=>r.mapEntryState(d.uuid,r.getByName('ST_Backgammon')))
-            .then(()=>ep.entryPoint.setText(d.textId)).then(()=>ep.entryPoint.setIcon(d.icon))
-            .then(()=>ep.setAvailability('ENABLED')).then(()=>this.render()).then(()=>this.initialized())
-            .then(()=>{const id=this.getLastExecutedEntryPointUuid&&this.getLastExecutedEntryPointUuid();if(id){this.registerActive();return r.openEntryState(id);}});
+        return this.startScreen(ep,r.getByName('ST_Backgammon')).then(()=>this.render());
     }
     press(row){
         if(this.busy||this.stopping||!this.rows[row])return;
@@ -40,6 +68,18 @@ class BackgammonApp extends OnlineApp {
     }
     render(){
         const r=this.rhmiApplication,s=this.game.state,rows=this.game.actions();
+        if(!this.dir){
+            let failure;
+            for(const parent of ['/dev/shm',os.tmpdir()]){
+                try{
+                    const dir=fs.mkdtempSync(path.join(parent,'dk_backgammon-'));
+                    fs.chmodSync(dir,0o755);
+                    this.dir=dir;
+                    break;
+                }catch(e){failure=e;}
+            }
+            if(!this.dir)throw failure;
+        }
         const file=path.join(this.dir,'board-'+(++this.seq)+'.png'),old=this.image,bundle=r.getResourceBundle();
         fs.writeFileSync(file,Board.png(s),{mode:0o644});
         this.rows=[];
