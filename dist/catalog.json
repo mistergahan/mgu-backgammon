@@ -6,17 +6,17 @@
       "kind": "app",
       "title": "Нарды",
       "description": "Короткие и длинные нарды: вдвоём или с компьютером.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "build": "unit",
       "mguHmi": [
         "ID7"
       ],
       "uninstallable": true,
       "artifact": {
-        "name": "dk_backgammon@0.1.0.tgz",
-        "url": "dk_backgammon@0.1.0.tgz",
-        "size": 10444,
-        "sha256": "162edadbe9051e092108e2d9c86684a11c07edfb5d08e35b012f63c0c0a12162"
+        "name": "dk_backgammon@0.1.1.tgz",
+        "url": "dk_backgammon@0.1.1.tgz",
+        "size": 10847,
+        "sha256": "a8eb255961d43337ad42e04200c21624e0dcc52853cc8735429d78b3935549f4"
       }
     },
     {
@@ -24,17 +24,17 @@
       "kind": "app",
       "title": "Тетрис",
       "description": "Тетрис для iDrive 7: семь фигур, уровни, рекорд и сохранение.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "build": "unit",
       "mguHmi": [
         "ID7"
       ],
       "uninstallable": true,
       "artifact": {
-        "name": "dk_tetris@0.1.0.tgz",
-        "url": "dk_tetris@0.1.0.tgz",
-        "size": 9029,
-        "sha256": "e417af01fe5284221c3a10e721e883f1d3243887df2ea0aab3baf368e6a219bf"
+        "name": "dk_tetris@0.1.1.tgz",
+        "url": "dk_tetris@0.1.1.tgz",
+        "size": 9438,
+        "sha256": "4c5df14738d06bf2840c5b627286a1c67474f2f835384636fa7380825b4dce02"
       }
     }
   ]
