@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "1.3.0",
+  "containers": {
+    "1": {
+      "type": "state",
+      "name": "ST_Tetris",
+      "components": {
+        "10": {
+          "type": "title",
+          "name": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_TETRIS",
+                "type": "StringId"
+              }
+            }
+          ]
+        },
+        "20": {
+          "type": "label",
+          "name": "status",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "21": {
+          "type": "label",
+          "name": "board",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {}
+          ]
+        },
+        "22": {
+          "type": "button",
+          "name": "moves",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
